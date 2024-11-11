@@ -1,6 +1,6 @@
 import Post from '../models/post.model.js';
 import { errorHandler } from '../utils/error.js';
-
+import mongoose from 'mongoose';
 export const create = async (req, res, next) => {
   if (!req.user.isAdmin) {
     return next(errorHandler(403, 'You are not allowed to create a post'));
@@ -84,12 +84,21 @@ export const deletepost = async (req, res, next) => {
 };
 
 export const updatepost = async (req, res, next) => {
-  if (!req.user.isAdmin || req.user.id !== req.params.userId) {
+  const { postId, userId } = req.params;  // Ensure we're accessing the parameters
+
+  // Check if postId or userId is valid
+  if (!mongoose.Types.ObjectId.isValid(postId) || !mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ error: 'Invalid ObjectId format for postId or userId' });
+  }
+
+  // Check if the user is authorized to update the post
+  if (!req.user || !req.user.isAdmin || req.user.id !== userId) {
     return next(errorHandler(403, 'You are not allowed to update this post'));
   }
+
   try {
     const updatedPost = await Post.findByIdAndUpdate(
-      req.params.postId,
+      postId,  // Using postId here
       {
         $set: {
           title: req.body.title,
@@ -100,6 +109,11 @@ export const updatepost = async (req, res, next) => {
       },
       { new: true }
     );
+
+    if (!updatedPost) {
+      return next(errorHandler(404, 'Post not found'));
+    }
+
     res.status(200).json(updatedPost);
   } catch (error) {
     next(error);
